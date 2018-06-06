@@ -1,5 +1,6 @@
 import ssl, socket, logging, threading, time, json, copy, sys
 import urllib.parse as urlparse
+import socks
 
 USER_AGENT = "NightProxy"
 VERSION = [0, 1]
@@ -86,6 +87,7 @@ class Client(threading.Thread):
     def send(self, data):
         try:
             self.conn.send((data + '\n').encode('UTF-8'))
+            logging.debug(self.log_msg + data)
         except:
             self.running = False
             logging.error(self.log_msg + 'send data connection error')
@@ -97,22 +99,25 @@ class Client(threading.Thread):
             _subscription['id'] = request.get('id')
             #send subscribe {"id":1,"result":[[["mining.set_difficulty","1"],["mining.notify","46ed43e60de658e75c9c0c280a44279d"]],"8100024a",4],"error":null}
             _subscription['result'].append(self.extranounce2)
-            self.send(json.dumps(_subscription))
-            logging.debug(self.log_msg + json.dumps(_subscription))
+            reply = json.dumps(_subscription)
+            self.send(reply)
 
         elif request.get('method') == 'mining.extranonce.subscribe':
             # send {"id":2,"result":true,"error":null}
-            self.send('{"id":%s,"result": true,"error": null}' % request.get("id"))
-
+            reply = '{"id":%s,"result": true,"error": null}' % request.get("id")
+            self.send(reply)
 
         elif request.get('method') == 'mining.authorize':
             # send {"id":3,"result":true,"error":null}
-            self.send('{"id":%s,"result": true,"error": null}' % request.get("id"))
+            reply = '{"id":%s,"result": true,"error": null}' % request.get("id")
+            self.send(reply)
             # {"id":null,"method":"mining.set_difficulty","params":[1]}
             #self.send('{"id":null,"method":"mining.set_difficulty","params":[1]}')
-            self.send(json.dumps(difficulty_reply))
+            reply = json.dumps(difficulty_reply)
+            self.send(reply)
             # {"id":null,"method":"mining.notify","params":["7f","67abb7abb1e3468870c474b31edca05b6aa3c6e7389b6b01668a42fa00000051","02000000010000000000000000000000000000000000000000000000000000000000000000ffffffff1f0300e803062f503253482f040abf075b08","7969696d7000000000000100ea56fa000000001976a914956ee94d91a4eedc1c6106b6dcf2c90c5077d35888ac00000000",[],"00000002","1e00d9f5","5b07bf0a",true]}
-            self.send(json.dumps(notify_reply))
+            reply = json.dumps(notify_reply)
+            self.send(reply)
 
         elif request.get('method') == 'mining.submit':
             # send to the server
@@ -123,7 +128,7 @@ class Client(threading.Thread):
     def run(self):
         logging.info(self.log_msg + "start")
         data = ''
-        while self.running:
+        while server_ready.is_set() and self.running:
             if '\n' in data:
                 (line, data) = data.split('\n', 1)
             else:
@@ -184,6 +189,10 @@ class Server(threading.Thread):
     def connect(self):
         logging.info("%s connect to %s:%d" % (self.log_msg,self.dest_host,self.dest_port))
         self.dest_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+        #self.dest_socket = socks.socksocket(socket.AF_INET, socket.SOCK_STREAM)
+        #self.dest_socket.set_proxy(socks.SOCKS5, "127.0.0.1", 9050)
+
         self.dest_socket.connect((self.dest_host, self.dest_port))
         self.dest_socket.settimeout(1)
         server_connect.set()
@@ -253,7 +262,7 @@ class Server(threading.Thread):
             (difficulty,) = reply['params']
             difficulty_reply = reply
             # send to all clients
-            self.send_all(reply)
+            self.send_all(json.dumps(reply))
             print(reply)
             logging.info(self.log_msg + 'change difficulty: difficulty=%s' % difficulty)
 

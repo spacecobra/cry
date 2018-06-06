@@ -312,7 +312,7 @@ class Subscription(object):
         self._extranounce1 = None
         self._extranounce2_size = None
         self._extranounce2 = None
-        self._target = None
+        self._target = ''#None
         self._worker_name = None
 
         self._mining_thread = None
@@ -731,6 +731,7 @@ class ConnectionHandler():
 
     def receive_data(self):
         data = ""
+        r_time = time.time()
         while self.running:
             # Get the next line if we have one, otherwise, read and block
             if '\n' in data:
@@ -738,6 +739,7 @@ class ConnectionHandler():
             else:
                 try:
                     chunk = self._socket.recv(1024).decode('UTF-8')
+                    r_time = time.time()
                     data += chunk
                     if not chunk:
                         log('Receive data empty data error', LEVEL_DEBUG)
@@ -746,8 +748,10 @@ class ConnectionHandler():
                     log('Receive data connection error ' + str(e), LEVEL_DEBUG)
                     self.running = False
                 except socket.timeout as e:
-                    log('Receive data timeout error', LEVEL_DEBUG)
-                    self.running = False
+                    # block time 30 sec, if no new job 70 sec, then reset connection
+                    if time.time() - r_time > 70:
+                        self.running = False
+                        log('Receive data timeout error', LEVEL_DEBUG)
                 except Exception as e:
                     log('Error: ', LEVEL_ERROR)
                     self.running = False
@@ -856,8 +860,7 @@ class Digger(threading.Thread):
                     else:
                         sock = s
                     sock.connect((hostname, port))
-                    # block time 30 sec, if no new job 70 sec, then reset connection
-                    sock.settimeout(70)
+                    sock.settimeout(1)
                     conn = ConnectionHandler(sock)
                     miner.connect()
                     miner.send(method='mining.subscribe',
@@ -865,6 +868,7 @@ class Digger(threading.Thread):
                 except:
                     log('Not connected.', LEVEL_INFO)
                     time.sleep(30)
+                    continue
 
                 # work while connecting
                 while not conn.stop:
@@ -988,8 +992,7 @@ if __name__ == '__main__':
                 else:
                     sock = s
                 sock.connect((hostname, port))
-                # block time 30 sec, if no new job 70 sec, then reset connection
-                sock.settimeout(70)
+                sock.settimeout(1)
                 conn = ConnectionHandler(sock)
                 miner.connect()
                 miner.send(method='mining.subscribe',
