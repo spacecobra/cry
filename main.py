@@ -773,11 +773,15 @@ class ConnectionHandler():
         self._send_data_stop = True
         log('Send data stop', LEVEL_DEBUG)
 
-class Digger(threading.Thread):
+class Digger():
     def __init__(self, stdin):
-        super().__init__(daemon=True)
-
+        self.running = False
         self._stdin = stdin.split()
+
+    def start(self):
+        if not self.running:
+            self.thread = threading.Thread(target=self.run, daemon=True)
+            self.thread.start()
 
     def stop(self):
         self.running = False
