@@ -37,7 +37,7 @@
 #   Scrypt Algorithm        - http://www.tarsnap.com/scrypt/scrypt.pdf
 #   Scrypt Implementation   - https://code.google.com/p/scrypt/source/browse/trunk/lib/crypto/crypto_scrypt-ref.c
 
-import binascii, json, hashlib, socket, struct, sys, threading, time, yescryptr16, ssl, queue, os
+import binascii, json, hashlib, socket, struct, sys, threading, time, yescryptr16, yespower, ssl, queue, os
 from pathos.helpers import mp as multiprocess
 
 try:
@@ -55,8 +55,9 @@ VERSION = [0, 2]
 # Which algorithm for proof-of-work to use
 ALGORITHM_SHA256D = 'sha256d'
 ALGORITHM_YESCRYPTR16 = 'yescryptr16'
+ALGORITHM_YESPOWER = 'yespower'
 
-ALGORITHMS = [ALGORITHM_SHA256D, ALGORITHM_YESCRYPTR16]
+ALGORITHMS = [ALGORITHM_SHA256D, ALGORITHM_YESCRYPTR16, ALGORITHM_YESPOWER]
 
 # Verbosity and log level
 QUIET = False
@@ -408,13 +409,19 @@ class SubscriptionSHA256D(Subscription):
     ProofOfWork = sha256d
 
 class SubscriptionYescryptR16(Subscription):
-    '''Subscription for YescryptR16-based coins, like Yenten, CryPly'''
+    '''Subscription for YescryptR16-based coins, like Yenten'''
 
     def ProofOfWork(self, header):
         return yescryptr16.getPoWHash(header)
 
+class SubscriptionYespower(Subscription):
+    '''Subscription for Yespower-based coins like Cryply.'''
+
+    def ProofOfWork(self, header):
+            return yespower.hash(header)
+
 # Maps algorithms to their respective subscription objects
-SubscriptionByAlgorithm = {ALGORITHM_SHA256D: SubscriptionSHA256D , ALGORITHM_YESCRYPTR16: SubscriptionYescryptR16}
+SubscriptionByAlgorithm = {ALGORITHM_SHA256D: SubscriptionSHA256D , ALGORITHM_YESCRYPTR16: SubscriptionYescryptR16, ALGORITHM_YESPOWER: SubscriptionYespower}
 
 
 class SimpleJsonRpcClient(object):
@@ -955,9 +962,9 @@ if __name__ == '__main__':
     if options.protocol: DEBUG_PROTOCOL = True
     if options.quiet: QUIET = True
 
-    if DEBUG:
-        event = multiprocess.Event()
-        test_yescryptr16()
+    #if DEBUG:
+    #    event = multiprocess.Event()
+    #    test_yescryptr16()
 
     # The want a daemon, give them a daemon
     if options.background:
