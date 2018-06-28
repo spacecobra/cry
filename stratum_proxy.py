@@ -73,6 +73,7 @@ class Client(threading.Thread):
         self.log_msg = "Client " + self.name + ": "
         self.extranounce2 = self.get_extranounce2()
         self.accepted_shares = 0
+        self.subscribed = False
 
     def get_extranounce2(self):
         for i in range(0, 0x7fffffff, 10):
@@ -118,6 +119,7 @@ class Client(threading.Thread):
             # {"id":null,"method":"mining.notify","params":["7f","67abb7abb1e3468870c474b31edca05b6aa3c6e7389b6b01668a42fa00000051","02000000010000000000000000000000000000000000000000000000000000000000000000ffffffff1f0300e803062f503253482f040abf075b08","7969696d7000000000000100ea56fa000000001976a914956ee94d91a4eedc1c6106b6dcf2c90c5077d35888ac00000000",[],"00000002","1e00d9f5","5b07bf0a",true]}
             reply = json.dumps(notify_reply)
             self.send(reply)
+            self.subscribed = True
 
         elif request.get('method') == 'mining.submit':
             # send to the server
@@ -162,8 +164,11 @@ class Client(threading.Thread):
                 logging.error(self.log_msg + output + '\n' + str(e))
         # deleting worker from list of workers
         del clients[self.name]
-        self.conn.shutdown(socket.SHUT_RDWR)
-        self.conn.close()
+        try:
+            self.conn.shutdown(socket.SHUT_RDWR)
+            self.conn.close()
+        except:
+            pass
         extranounce2_list.remove(self.extranounce2)
         logging.info(self.log_msg + "close connection")
 
@@ -232,7 +237,8 @@ class Server(threading.Thread):
 
     def send_all(self, message):
         for client in clients:
-            clients[client].send(message)
+            if clients[client].subscribed:
+                clients[client].send(message)
 
     def handle_reply(self, request, reply):
         global subscription_reply
@@ -248,7 +254,7 @@ class Server(threading.Thread):
 
             (job_id, prevhash, coinb1, coinb2, merkle_branches, version, nbits, ntime, clean_jobs) = reply['params']
             notify_reply = reply
-            # send to all clients
+            # send to all subscribed clients
             self.send_all(json.dumps(reply))
             print(reply)
             logging.info(self.log_msg + 'new job: job_id=%s' % job_id)
@@ -261,7 +267,7 @@ class Server(threading.Thread):
 
             (difficulty,) = reply['params']
             difficulty_reply = reply
-            # send to all clients
+            # send to all subscribed clients
             self.send_all(json.dumps(reply))
             print(reply)
             logging.info(self.log_msg + 'change difficulty: difficulty=%s' % difficulty)
@@ -273,7 +279,7 @@ class Server(threading.Thread):
                 raise
 
             (extranonce1,extranonce2_size) = reply['params']
-            # send to all clients
+            # send to all subscribed clients
             self.send_all(reply)
             print(reply)
             logging.info(self.log_msg + 'change extranonce1: extranonce1=%s' % extranonce1)
